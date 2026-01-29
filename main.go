@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stevensopi/Configo/logger"
+	"github.com/stevensopi/Configo/raft"
 	"github.com/stevensopi/Configo/server/http"
 )
 
@@ -29,6 +30,24 @@ func main() {
 			errCh <- err
 		}
 	}()
+
+	node, err := raft.NewRaftNode(&raft.RaftNodeConfig{
+		InternalStorageLocation: "./config-store/",
+		RaftLogName:             "store",
+		SnapshotLocation:        "./snapshots/",
+		NodeServerId:            "node-1",
+		SnapshotRetainNum:       2,
+		SnapshotLogOutput:       os.Stdout,
+		Addr:                    "127.0.0.1:9090",
+		TcpTransportPool:        3,
+		TcpTransportTimeout:     time.Second * 30,
+	}, logger.With("component", "raft-node-1"))
+
+	if err != nil {
+		errCh <- err
+	} else {
+		node.BootstrapCluster()
+	}
 
 	select {
 	case <-ctx.Done():
