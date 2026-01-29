@@ -2,18 +2,18 @@ package http
 
 import "net/http"
 
-func HandlePutConfig(w http.ResponseWriter, r *http.Request) {
+func handlePutConfig(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func HandleGetConfig(w http.ResponseWriter, r *http.Request) {
+func handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func HandleListConfig(w http.ResponseWriter, r *http.Request) {
+func handleListConfig(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func HandleDeleteConfig(w http.ResponseWriter, r *http.Request) {
+func handleDeleteConfig(w http.ResponseWriter, r *http.Request) {
 
 }

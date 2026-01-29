@@ -2,25 +2,34 @@ package http
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"time"
 
 	"log/slog"
 
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/raft"
+	"github.com/stevensopi/Configo/raft_node"
 )
 
 type HttpServer struct {
-	addr   string
-	server *http.Server
-	router *mux.Router
-	logger *slog.Logger
+	addr               string
+	server             *http.Server
+	router             *mux.Router
+	logger             *slog.Logger
+	isRaftLeaderServer bool // if its raft leader Server it will expose different endpoints
+	raft               *raft_node.RaftNode
 }
 
-func NewHttpServer(addr string, logger *slog.Logger) *HttpServer {
+func NewHttpServer(isRaftLeaderServer bool, addr string, logger *slog.Logger, raft *raft_node.RaftNode) *HttpServer {
 	router := mux.NewRouter()
 	s := &HttpServer{
 		addr:   addr,
 		router: router,
+		raft:   raft,
 	}
 
 	s.server = &http.Server{
@@ -29,15 +38,69 @@ func NewHttpServer(addr string, logger *slog.Logger) *HttpServer {
 
 	s.logger = logger
 
-	s.registerHandlers()
+	if s.isRaftLeaderServer {
+		s.registerRaftLeaderHandlers()
+	} else {
+		s.registerPlanHandlers()
+	}
 	return s
 }
 
-func (s *HttpServer) registerHandlers() {
-	s.router.HandleFunc("/config/list", HandleListConfig).Methods("GET")
-	s.router.HandleFunc("/config/{id}", HandleListConfig).Methods("GET")
-	s.router.HandleFunc("/config/{id}", HandlePutConfig).Methods("PUT")
-	s.router.HandleFunc("/config/{id}", HandleDeleteConfig).Methods("DELETE")
+func (s *HttpServer) registerRaftLeaderHandlers() {
+	s.router.HandleFunc("/raft/add-voter", s.handleAddVoter).Methods("POST")
+}
+
+type AddVoterRequest struct {
+	ID   string `json:"id"`
+	Addr string `json:"addr"`
+}
+
+func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to read body: %v", err), http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var req AddVoterRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, fmt.Sprintf("invalid json: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Check if this node is leader
+	if s.raft.Raft.State() != raft.Leader {
+		leader := s.raft.Raft.Leader()
+		if leader == "" {
+			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, fmt.Sprintf("not leader, current leader: %s", leader), http.StatusTemporaryRedirect)
+		return
+	}
+
+	// Add voter
+	future := s.raft.Raft.AddVoter(
+		raft.ServerID(req.ID),
+		raft.ServerAddress(req.Addr),
+		0,
+		10*time.Second,
+	)
+	if err := future.Error(); err != nil {
+		http.Error(w, fmt.Sprintf("failed to add voter: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("voter %s at %s added successfully", req.ID, req.Addr)))
+}
+
+func (s *HttpServer) registerPlanHandlers() {
+	s.router.HandleFunc("/config/list", handleListConfig).Methods("GET")
+	s.router.HandleFunc("/config/{id}", handleListConfig).Methods("GET")
+	s.router.HandleFunc("/config/{id}", handlePutConfig).Methods("PUT")
+	s.router.HandleFunc("/config/{id}", handleDeleteConfig).Methods("DELETE")
 }
 
 func (s *HttpServer) Start() error {
