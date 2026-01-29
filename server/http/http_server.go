@@ -38,15 +38,13 @@ func NewHttpServer(isRaftLeaderServer bool, addr string, logger *slog.Logger, ra
 
 	s.logger = logger
 
-	if s.isRaftLeaderServer {
-		s.registerRaftLeaderHandlers()
-	} else {
-		s.registerPlanHandlers()
-	}
+	s.registerRaftHandlers()
+	s.registerConfigHandlers()
+
 	return s
 }
 
-func (s *HttpServer) registerRaftLeaderHandlers() {
+func (s *HttpServer) registerRaftHandlers() {
 	s.router.HandleFunc("/raft/add-voter", s.handleAddVoter).Methods("POST")
 }
 
@@ -70,7 +68,7 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if this node is leader
-	if s.raft.Raft.State() != raft.Leader {
+	if s.raft.Raft.State() != raft.Leader { // node not leader deny request
 		leader := s.raft.Raft.Leader()
 		if leader == "" {
 			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
@@ -96,7 +94,7 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("voter %s at %s added successfully", req.ID, req.Addr)))
 }
 
-func (s *HttpServer) registerPlanHandlers() {
+func (s *HttpServer) registerConfigHandlers() {
 	s.router.HandleFunc("/config/list", handleListConfig).Methods("GET")
 	s.router.HandleFunc("/config/{id}", handleListConfig).Methods("GET")
 	s.router.HandleFunc("/config/{id}", handlePutConfig).Methods("PUT")
