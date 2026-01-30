@@ -1,4 +1,4 @@
-package http
+package http_server
 
 import (
 	"context"
@@ -16,15 +16,14 @@ import (
 )
 
 type HttpServer struct {
-	addr               string
-	server             *http.Server
-	router             *mux.Router
-	logger             *slog.Logger
-	isRaftLeaderServer bool // if its raft leader Server it will expose different endpoints
-	raft               *raft_node.RaftNode
+	addr   string
+	server *http.Server
+	router *mux.Router
+	logger *slog.Logger
+	raft   *raft_node.RaftNode
 }
 
-func NewHttpServer(isRaftLeaderServer bool, addr string, logger *slog.Logger, raft *raft_node.RaftNode) *HttpServer {
+func NewHttpServer(addr string, logger *slog.Logger, raft *raft_node.RaftNode) *HttpServer {
 	router := mux.NewRouter()
 	s := &HttpServer{
 		addr:   addr,
@@ -33,7 +32,8 @@ func NewHttpServer(isRaftLeaderServer bool, addr string, logger *slog.Logger, ra
 	}
 
 	s.server = &http.Server{
-		Addr: addr,
+		Addr:    addr,
+		Handler: router,
 	}
 
 	s.logger = logger

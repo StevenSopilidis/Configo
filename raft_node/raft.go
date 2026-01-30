@@ -87,7 +87,7 @@ func NewRaftNode(clusterConfig *RaftNodeConfig, logger *slog.Logger) (*RaftNode,
 }
 
 // should only be called once by the first node joining the cluster
-func (node *RaftNode) BootstrapCluster() {
+func (node *RaftNode) BootstrapCluster() error {
 	node.logger.Info("Bootstraping raft cluster")
 	config := raft.Configuration{
 		Servers: []raft.Server{
@@ -97,5 +97,7 @@ func (node *RaftNode) BootstrapCluster() {
 			},
 		},
 	}
-	node.Raft.BootstrapCluster(config)
+	future := node.Raft.BootstrapCluster(config)
+
+	return future.Error()
 }

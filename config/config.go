@@ -15,8 +15,9 @@ type Config struct {
 	RaftAddr                    string        `mapstructure:"RAFT_ADDR"`
 	RaftTcpTransportPool        int           `mapstructure:"RAFT_TCP_TRANSPORT_POOL"`
 	RaftTcpTransportTimeout     time.Duration `mapstructure:"RAFT_TCP_TRANSPORT_TIMEOUT"`
+	RaftMaxConnectionRetries    int           `mapstructure:"RAFT_MAX_CONNECTION_RETRIES"`
+	RaftSeedMgmtServerAddress   string        `mapstructure:"RAFT_SEED_MGMT_SERVER_ADDRESS"`
 	AppAddr                     string        `mapstructure:"APP_ADDR"`
-	LeaderMgmtServerAddress     string        `mapstructure:"LEADER_MGMT_SERVER_ADDRESS"`
 	IsFirstNodeInCluster        bool          `mapstructure:"IS_FIRST_NODE_IN_CLUSTER"`
 }
 
@@ -42,6 +43,8 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.BindEnv("RAFT_ADDR")
 	viper.BindEnv("RAFT_TCP_TRANSPORT_POOL")
 	viper.BindEnv("RAFT_TCP_TRANSPORT_TIMEOUT")
+	viper.BindEnv("RAFT_SEED_MGMT_SERVER_ADDRESS")
+	viper.BindEnv("RAFT_MAX_CONNECTION_RETRIES")
 	viper.BindEnv("APP_ADDR")
 	viper.BindEnv("LEADER_MGMT_SERVER_ADDRESS")
 	viper.BindEnv("IS_FIRST_NODE_IN_CLUSTER")
