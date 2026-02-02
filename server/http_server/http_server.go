@@ -48,15 +48,6 @@ func (s *HttpServer) registerRaftHandlers() {
 	s.router.HandleFunc("/raft/add-voter", s.handleAddVoter).Methods("POST")
 }
 
-type AddVoterRequest struct {
-	ID   string `json:"id"`
-	Addr string `json:"addr"`
-}
-
-type AddVoterResponse struct {
-	Addr string `json:"addr"`
-}
-
 func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -107,11 +98,131 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("voter %s at %s added successfully", req.ID, req.Addr)))
 }
 
+func (s *HttpServer) handlePutConfig(w http.ResponseWriter, r *http.Request) {
+	if s.raft.Raft.State() != raft.Leader {
+		leader := s.raft.Raft.Leader()
+		if leader == "" {
+			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
+			return
+		}
+
+		res := AddVoterResponse{
+			Addr: string(leader),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+		if err := json.NewEncoder(w).Encode(res); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	id := mux.Vars(r)["id"]
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	cmd := raft_node.Command{
+		Key:   id,
+		Value: body,
+	}
+
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		http.Error(w, "failed to marshal command", http.StatusInternalServerError)
+		return
+	}
+
+	future := s.raft.Raft.Apply(data, 10*time.Second)
+	if err := future.Error(); err != nil {
+		http.Error(w, fmt.Sprintf("raft apply failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("config stored"))
+}
+
+func (s *HttpServer) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	val, err := s.raft.FSM.Store.Get(id)
+	if err != nil {
+		http.Error(w, "config not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(val)
+}
+
+func (s *HttpServer) handleListConfig(w http.ResponseWriter, r *http.Request) {
+	keys, err := s.raft.FSM.Store.List()
+
+	if err != nil {
+		http.Error(w, "failed to list configs", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(keys)
+}
+
+func (s *HttpServer) handleDeleteConfig(w http.ResponseWriter, r *http.Request) {
+	if s.raft.Raft.State() != raft.Leader {
+		leader := s.raft.Raft.Leader()
+		if leader == "" {
+			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
+			return
+		}
+
+		res := AddVoterResponse{
+			Addr: string(leader),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+		if err := json.NewEncoder(w).Encode(res); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	id := mux.Vars(r)["id"]
+
+	cmd := raft_node.Command{
+		Key:   id,
+		Value: nil, // tombstone
+	}
+
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		http.Error(w, "failed to marshal command", http.StatusInternalServerError)
+		return
+	}
+
+	future := s.raft.Raft.Apply(data, 10*time.Second)
+	if err := future.Error(); err != nil {
+		http.Error(w, fmt.Sprintf("raft apply failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("config deleted"))
+
+}
+
 func (s *HttpServer) registerConfigHandlers() {
-	s.router.HandleFunc("/config/list", handleListConfig).Methods("GET")
-	s.router.HandleFunc("/config/{id}", handleListConfig).Methods("GET")
-	s.router.HandleFunc("/config/{id}", handlePutConfig).Methods("PUT")
-	s.router.HandleFunc("/config/{id}", handleDeleteConfig).Methods("DELETE")
+	s.router.HandleFunc("/config/list", s.handleListConfig).Methods("GET")
+	s.router.HandleFunc("/config/{id}", s.handleGetConfig).Methods("GET")
+	s.router.HandleFunc("/config/{id}", s.handlePutConfig).Methods("PUT")
+	s.router.HandleFunc("/config/{id}", s.handleDeleteConfig).Methods("DELETE")
 }
 
 func (s *HttpServer) Start() error {

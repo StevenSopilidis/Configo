@@ -88,21 +88,26 @@ func (app *Application) Run() {
 	}()
 
 	// if not first node in cluster try to connect to cluster
-	go func() {
-		time.Sleep(time.Second * 10) // sleep for a bit
-		err := app.raftClient.AddNodeAsVoter(&http_server.AddVoterRequest{
-			ID:   app.config.RaftNodeServerId,
-			Addr: app.config.RaftAddr,
-		})
+	if !app.config.IsFirstNodeInCluster {
+		go func() {
+			time.Sleep(time.Second * 10) // sleep for a bit
+			err := app.raftClient.AddNodeAsVoter(&http_server.AddVoterRequest{
+				ID:   app.config.RaftNodeServerId,
+				Addr: app.config.RaftAddr,
+			})
 
-		errCh <- err
-	}()
+			if err != nil {
+				errCh <- err
+			}
+
+		}()
+	}
 
 	select {
 	case <-ctx.Done():
 		app.logger.Info("Shutdown signal received")
 	case err := <-errCh:
-		app.logger.Error("Server failled", "err", err)
+		app.logger.Error("Server failed", "err", err)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)

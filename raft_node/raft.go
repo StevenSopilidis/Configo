@@ -27,6 +27,7 @@ type RaftNodeConfig struct {
 
 type RaftNode struct {
 	Raft   *raft.Raft
+	FSM    *FSM
 	logger *slog.Logger
 	id     raft.ServerID
 	addr   raft.ServerAddress
@@ -65,12 +66,14 @@ func NewRaftNode(clusterConfig *RaftNodeConfig, logger *slog.Logger) (*RaftNode,
 		return nil, err
 	}
 
+	fsm := &FSM{
+		Store:  store,
+		logger: logger.With("component", "fsm"),
+	}
+
 	r, err := raft.NewRaft(
 		config,
-		&FSM{
-			store:  store,
-			logger: logger.With("component", "fsm"),
-		},
+		fsm,
 		boltStore, boltStore, snapStore, transport)
 
 	if err != nil {
@@ -80,6 +83,7 @@ func NewRaftNode(clusterConfig *RaftNodeConfig, logger *slog.Logger) (*RaftNode,
 
 	return &RaftNode{
 		Raft:   r,
+		FSM:    fsm,
 		logger: logger,
 		id:     config.LocalID,
 		addr:   transport.LocalAddr(),

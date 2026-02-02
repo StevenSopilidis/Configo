@@ -53,3 +53,24 @@ func (s *Store) Get(key string) ([]byte, error) {
 
 	return val, err
 }
+
+func (s *Store) List() ([]string, error) {
+	keys := []string{}
+
+	err := s.db.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			keys = append(keys, string(item.Key()))
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return keys, nil
+}

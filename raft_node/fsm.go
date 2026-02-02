@@ -15,7 +15,7 @@ type Command struct {
 }
 
 type FSM struct {
-	store  *storage.Store
+	Store  *storage.Store
 	logger *slog.Logger
 }
 
@@ -33,7 +33,7 @@ func (f *FSM) Apply(logEntry *raft.Log) interface{} {
 		return err
 	}
 
-	if err := f.store.Store(cmd.Key, cmd.Value); err != nil {
+	if err := f.Store.Store(cmd.Key, cmd.Value); err != nil {
 		f.logger.Error("Failed to apply raft command", "error", err)
 		return err
 	}
