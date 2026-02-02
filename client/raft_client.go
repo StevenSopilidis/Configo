@@ -48,6 +48,16 @@ func (rc *RaftClient) AddNodeAsVoter(r *http_server.AddVoterRequest) error {
 			return nil
 		}
 
+		if res.StatusCode == http.StatusTemporaryRedirect {
+			// parse received leader addr
+			var addVoterRes http_server.AddVoterResponse
+			if err := json.NewDecoder(res.Body).Decode(&addVoterRes); err != nil {
+				continue
+			}
+
+			rc.config.RaftSeedMgmtServerAddress = addVoterRes.Addr
+		}
+
 		time.Sleep(time.Second) // sleep for a bit before retrying
 	}
 

@@ -53,6 +53,10 @@ type AddVoterRequest struct {
 	Addr string `json:"addr"`
 }
 
+type AddVoterResponse struct {
+	Addr string `json:"addr"`
+}
+
 func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -68,13 +72,22 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if this node is leader
-	if s.raft.Raft.State() != raft.Leader { // node not leader deny request
+	if s.raft.Raft.State() != raft.Leader {
 		leader := s.raft.Raft.Leader()
 		if leader == "" {
 			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
 			return
 		}
-		http.Error(w, fmt.Sprintf("not leader, current leader: %s", leader), http.StatusTemporaryRedirect)
+
+		res := AddVoterResponse{
+			Addr: string(leader),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTemporaryRedirect)
+		if err := json.NewEncoder(w).Encode(res); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
