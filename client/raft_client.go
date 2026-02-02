@@ -3,10 +3,11 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/stevensopi/Configo/logger"
 	"github.com/stevensopi/Configo/server/http_server"
 )
 
@@ -36,13 +37,18 @@ func (rc *RaftClient) AddNodeAsVoter(r *http_server.AddVoterRequest) error {
 		return err
 	}
 
-	// [TODO] need to check response in case new leader is elected and need to try to connect to him
+	logger := logger.NewLogger()
+
 	for i := 0; i < rc.config.MaxRetries; i++ {
+		logger.Info("Sending connection request to", "address", rc.config.RaftSeedMgmtServerAddress)
+
 		res, err := rc.client.Post(rc.config.RaftSeedMgmtServerAddress, "application/json", bytes.NewBuffer(data))
 		if err != nil {
 			return err
 		}
 		defer res.Body.Close()
+
+		logger.Info("When trying to become voter received status code: ", "code", res.StatusCode)
 
 		if res.StatusCode == http.StatusOK {
 			return nil
@@ -52,7 +58,7 @@ func (rc *RaftClient) AddNodeAsVoter(r *http_server.AddVoterRequest) error {
 			// parse received leader addr
 			var addVoterRes http_server.AddVoterResponse
 			if err := json.NewDecoder(res.Body).Decode(&addVoterRes); err != nil {
-				continue
+				err = fmt.Errorf("Failed to decode AddVoterResponse from leader")
 			}
 
 			rc.config.RaftSeedMgmtServerAddress = addVoterRes.Addr
@@ -61,5 +67,5 @@ func (rc *RaftClient) AddNodeAsVoter(r *http_server.AddVoterRequest) error {
 		time.Sleep(time.Second) // sleep for a bit before retrying
 	}
 
-	return errors.New("Could not add node as voter to leader")
+	return fmt.Errorf("Failed to add node as voter")
 }

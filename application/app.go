@@ -27,17 +27,23 @@ type Application struct {
 func NewApplication(config *config.Config) (*Application, error) {
 	logger := logger.NewLogger()
 
+	logger.Info("Duration provided", "duration", config.RaftTcpTransportTimeout)
+	duration, err := time.ParseDuration(config.RaftTcpTransportTimeout)
+	if err != nil {
+		return nil, err
+	}
+
 	node, err := raft_node.NewRaftNode(&raft_node.RaftNodeConfig{
-		InternalStorageLocation: "./config-store/",
-		RaftLogName:             "store",
-		SnapshotLocation:        "./snapshots/",
-		NodeServerId:            "node-1",
-		SnapshotRetainNum:       2,
+		InternalStorageLocation: config.RaftInternalStorageLocation,
+		RaftLogName:             config.RaftLogName,
+		SnapshotLocation:        config.RaftSnapshotLocation,
+		NodeServerId:            config.RaftNodeServerId,
+		SnapshotRetainNum:       config.RaftSnapshotRetainNum,
 		SnapshotLogOutput:       os.Stdout,
-		Addr:                    "127.0.0.1:9090",
-		TcpTransportPool:        3,
-		TcpTransportTimeout:     time.Second * 30,
-	}, logger.With("component", "raft-node-1"))
+		Addr:                    config.RaftAddr,
+		TcpTransportPool:        config.RaftTcpTransportPool,
+		TcpTransportTimeout:     duration,
+	}, logger.With("component", config.RaftNodeServerId))
 
 	if err != nil {
 		logger.Error("could not create raft cluster", "error", err)
@@ -55,8 +61,13 @@ func NewApplication(config *config.Config) (*Application, error) {
 
 	server := http_server.NewHttpServer(":8080", logger.With("component", "http-server"), node)
 
+	duration, error := time.ParseDuration(config.RaftTcpTransportTimeout)
+	if err != nil {
+		return nil, error
+	}
+
 	client := client.NewRaftClient(client.RaftClientConfig{
-		Timeout:                   config.RaftTcpTransportTimeout,
+		Timeout:                   duration,
 		MaxRetries:                config.RaftMaxConnectionRetries,
 		RaftSeedMgmtServerAddress: config.RaftSeedMgmtServerAddress,
 	})
@@ -97,7 +108,10 @@ func (app *Application) Run() {
 			})
 
 			if err != nil {
+				app.logger.Error("Failed to add node as voter", "error", err)
 				errCh <- err
+			} else {
+				app.logger.Info("Addded node as voter", "error", err)
 			}
 
 		}()

@@ -1,6 +1,6 @@
 # Configo 🛶🏠
 
-> A tiny, strongly-consistent configuration store built with Go and HashiCorp Raft.
+> A tiny, strongly-consistentconfiguration demo store built with Go and HashiCorp Raft.
 
 Configo is a **mini-Consul / mini-etcd** designed to demonstrate real-world distributed systems concepts: **leader election, log replication, fault tolerance, and strong consistency** — all in a compact, understandable codebase.
 
@@ -58,22 +58,6 @@ GET /config
 * **Writes**: Linearizable (via Raft leader)
 * **Reads**: Served locally (can be upgraded to leader-only reads)
 * **Failure Handling**: Automatic leader re-election
-
----
-
-## 💾 Persistence
-
-Each node persists:
-
-* Raft log
-* Raft snapshots
-* Applied configuration state
-
-This allows:
-
-* Safe restarts
-* Fast recovery
-* Log compaction via snapshots
 
 ---
 

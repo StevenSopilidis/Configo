@@ -51,6 +51,7 @@ func (s *HttpServer) registerRaftHandlers() {
 func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		s.logger.Error("Failed to add voter", "error", err)
 		http.Error(w, fmt.Sprintf("failed to read body: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -58,6 +59,7 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 
 	var req AddVoterRequest
 	if err := json.Unmarshal(body, &req); err != nil {
+		s.logger.Error("Failed to add voter", "error", err)
 		http.Error(w, fmt.Sprintf("invalid json: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -66,6 +68,7 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 	if s.raft.Raft.State() != raft.Leader {
 		leader := s.raft.Raft.Leader()
 		if leader == "" {
+			s.logger.Error("Failed to add voter since no leader is elected")
 			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
 			return
 		}
@@ -77,6 +80,7 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTemporaryRedirect)
 		if err := json.NewEncoder(w).Encode(res); err != nil {
+			s.logger.Error("Failed to add voter", req.ID, req.Addr)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
@@ -90,18 +94,22 @@ func (s *HttpServer) handleAddVoter(w http.ResponseWriter, r *http.Request) {
 		10*time.Second,
 	)
 	if err := future.Error(); err != nil {
+		s.logger.Error("Failed to add voter", req.ID, req.Addr)
 		http.Error(w, fmt.Sprintf("failed to add voter: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	s.logger.Info("Voter added successfully", req.ID, req.Addr)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("voter %s at %s added successfully", req.ID, req.Addr)))
 }
 
 func (s *HttpServer) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	if s.raft.Raft.State() != raft.Leader {
+		s.logger.Error("Follower cannot process PUT request")
+
 		leader := s.raft.Raft.Leader()
 		if leader == "" {
+			s.logger.Error("Failed to process request since no leader is elected")
 			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
 			return
 		}
@@ -113,6 +121,7 @@ func (s *HttpServer) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTemporaryRedirect)
 		if err := json.NewEncoder(w).Encode(res); err != nil {
+			s.logger.Error("Follower encode response", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
@@ -122,6 +131,7 @@ func (s *HttpServer) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		s.logger.Error("Failed to process PUT request", "error", err)
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
@@ -134,15 +144,19 @@ func (s *HttpServer) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 
 	data, err := json.Marshal(cmd)
 	if err != nil {
+		s.logger.Error("Failed to process PUT request", "error", err)
 		http.Error(w, "failed to marshal command", http.StatusInternalServerError)
 		return
 	}
 
 	future := s.raft.Raft.Apply(data, 10*time.Second)
 	if err := future.Error(); err != nil {
+		s.logger.Error("Failed to process PUT request", "error", err)
 		http.Error(w, fmt.Sprintf("raft apply failed: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Info("PUT request handled successfully")
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("config stored"))
@@ -153,9 +167,12 @@ func (s *HttpServer) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 	val, err := s.raft.FSM.Store.Get(id)
 	if err != nil {
+		s.logger.Error("Failed to process GET request", "error", err)
 		http.Error(w, "config not found", http.StatusNotFound)
 		return
 	}
+
+	s.logger.Error("GET request handled successfully")
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -166,9 +183,12 @@ func (s *HttpServer) handleListConfig(w http.ResponseWriter, r *http.Request) {
 	keys, err := s.raft.FSM.Store.List()
 
 	if err != nil {
+		s.logger.Error("Failed to process GET request", "error", err)
 		http.Error(w, "failed to list configs", http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Info("GET request handled successfully")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(keys)
@@ -176,8 +196,12 @@ func (s *HttpServer) handleListConfig(w http.ResponseWriter, r *http.Request) {
 
 func (s *HttpServer) handleDeleteConfig(w http.ResponseWriter, r *http.Request) {
 	if s.raft.Raft.State() != raft.Leader {
+		s.logger.Error("Follower cannot process DELETE request")
+
 		leader := s.raft.Raft.Leader()
 		if leader == "" {
+			s.logger.Error("Failed to process DELETE request since no leader is elected")
+
 			http.Error(w, "no leader currently elected", http.StatusServiceUnavailable)
 			return
 		}
@@ -189,6 +213,7 @@ func (s *HttpServer) handleDeleteConfig(w http.ResponseWriter, r *http.Request) 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTemporaryRedirect)
 		if err := json.NewEncoder(w).Encode(res); err != nil {
+			s.logger.Error("Follower encode response", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
@@ -203,15 +228,19 @@ func (s *HttpServer) handleDeleteConfig(w http.ResponseWriter, r *http.Request) 
 
 	data, err := json.Marshal(cmd)
 	if err != nil {
+		s.logger.Error("Failed to process DELETE request", "error", err)
 		http.Error(w, "failed to marshal command", http.StatusInternalServerError)
 		return
 	}
 
 	future := s.raft.Raft.Apply(data, 10*time.Second)
 	if err := future.Error(); err != nil {
+		s.logger.Error("Failed to process DELETE request", "error", err)
 		http.Error(w, fmt.Sprintf("raft apply failed: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Error("DELETE request handled successfully")
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("config deleted"))

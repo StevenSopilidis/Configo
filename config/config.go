@@ -1,37 +1,25 @@
 package config
 
 import (
-	"time"
-
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	RaftInternalStorageLocation string        `mapstructure:"RAFT_INTERNAL_STORAGE_LOCATION"`
-	RaftNodeServerId            string        `mapstructure:"RAFT_NODE_SERVER_ID"`
-	RaftLogName                 string        `mapstructure:"RAFT_LOG_NAME"`
-	RaftSnapshotLocation        string        `mapstructure:"RAFT_SNAPSHOT_LOCATION"`
-	RaftSnapshotRetainNum       int           `mapstructure:"RAFT_SNAPSHOT_RETAIN_NUM"`
-	RaftAddr                    string        `mapstructure:"RAFT_ADDR"`
-	RaftTcpTransportPool        int           `mapstructure:"RAFT_TCP_TRANSPORT_POOL"`
-	RaftTcpTransportTimeout     time.Duration `mapstructure:"RAFT_TCP_TRANSPORT_TIMEOUT"`
-	RaftMaxConnectionRetries    int           `mapstructure:"RAFT_MAX_CONNECTION_RETRIES"`
-	RaftSeedMgmtServerAddress   string        `mapstructure:"RAFT_SEED_MGMT_SERVER_ADDRESS"`
-	AppAddr                     string        `mapstructure:"APP_ADDR"`
-	IsFirstNodeInCluster        bool          `mapstructure:"IS_FIRST_NODE_IN_CLUSTER"`
+	RaftInternalStorageLocation string `mapstructure:"RAFT_INTERNAL_STORAGE_LOCATION"`
+	RaftNodeServerId            string `mapstructure:"RAFT_NODE_SERVER_ID"`
+	RaftLogName                 string `mapstructure:"RAFT_LOG_NAME"`
+	RaftSnapshotLocation        string `mapstructure:"RAFT_SNAPSHOT_LOCATION"`
+	RaftSnapshotRetainNum       int    `mapstructure:"RAFT_SNAPSHOT_RETAIN_NUM"`
+	RaftAddr                    string `mapstructure:"RAFT_ADDR"`
+	RaftTcpTransportPool        int    `mapstructure:"RAFT_TCP_TRANSPORT_POOL"`
+	RaftTcpTransportTimeout     string `mapstructure:"RAFT_TCP_TRANSPORT_TIMEOUT"`
+	RaftMaxConnectionRetries    int    `mapstructure:"RAFT_MAX_CONNECTION_RETRIES"`
+	RaftSeedMgmtServerAddress   string `mapstructure:"RAFT_SEED_MGMT_SERVER_ADDRESS"`
+	AppAddr                     string `mapstructure:"APP_ADDR"`
+	IsFirstNodeInCluster        bool   `mapstructure:"IS_FIRST_NODE_IN_CLUSTER"`
 }
 
-func LoadConfig(path string) (config Config, err error) {
-	viper.AddConfigPath(path)
-	viper.SetConfigName("app")
-	viper.SetConfigType("env")
-
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return config, err
-		}
-	}
-
+func LoadConfig() (config Config, err error) {
 	viper.AutomaticEnv()
 
 	// Bind each environment variable explicitly
