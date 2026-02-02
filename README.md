@@ -61,6 +61,14 @@ GET /config
 
 ---
 
+## Improvements for future
+* **Add watch interface** For watching config changes
+* **Multiple MGMT servers** So if one goes down newly created server can find leader
+* **Snapshot** Use of snapshot for easy recovery
+
+
+---
+
 ## 🛠 Tech Stack
 
 * **Go**
